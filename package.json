@@ -1,0 +1,14 @@
+{
+  "name": "project-analysis",
+  "version": "1.0.0",
+  "description": "项目分析统计工具",
+  "main": "index.js",
+  "bin": {
+      "project-analysis": "./index.js"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "blueni",
+  "license": "ISC"
+}
