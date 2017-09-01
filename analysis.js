@@ -1,6 +1,6 @@
 const fs = require( 'fs' )
 const path = require( 'path' )
-const { iterateFiles, readFileLines, pathTest, _tempOut } = require( './util.js' )
+const { iterateFiles, readFileLines, pathTest, _tempFile } = require( './util.js' )
 
 class Analysis{
 
@@ -8,8 +8,15 @@ class Analysis{
         this.includes = []
         this.excludes = [
             '.git', '.gitignore', '.svn', 'yarn.*', 'npm.*', 'package.json', '.vscode',
-            '*.png', '*.jpg', '*.jpeg', '*.gif',
+            '*.mp4', '*.png', '*.jpg', '*.jpeg', '*.gif', '*.ico', '_template.tmpl',
         ]
+        let ignoreFiles = [ '.gitignore', '.analysis-ignore' ]
+        ignoreFiles.forEach( file => {
+            if( fs.existsSync( path.join( process.cwd(), file ) ) ){
+                let excludes = fs.readFileSync( path.join( process.cwd(), file ), 'utf-8' )
+                this.excludes.push( ...excludes.split( /\r*\n/ ) )
+            }
+        })
         this.argv = argv
     }
 
@@ -21,6 +28,9 @@ class Analysis{
             if( task.operate ){
                 task.operate.apply( this, task.values )
             }
+        }
+        if( !Object.keys( tasks ).length ){
+            this.argv.wrongArg()
         }
     }
 
@@ -48,10 +58,10 @@ ${'*'.repeat( 40 )}
             if( file ){
                 fullFile = path.join( dir, file )
             }
+
             if( pathTest( includes, fullFile ) === false || pathTest( excludes, fullFile ) ){
                 return false
             }
-            // console.log( 'is right...', fullFile )
             if( file ){
                 return readFileLines( fullFile ).then( lines => {
                     count += lines
@@ -61,7 +71,11 @@ ${'*'.repeat( 40 )}
         }, ( res ) => {
             console.log( '-'.repeat( 40 ) )
             console.log( '项目代码总行数为：', count )
-            // _tempOut.close()
+            try{
+                if( fs.existsSync( _tempFile ) ){
+                    fs.unlinkSync( _tempFile )
+                }
+            }catch( err ){}
         })
 
     }

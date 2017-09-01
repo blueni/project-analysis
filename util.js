@@ -2,79 +2,90 @@ const fs = require( 'fs' )
 const path = require( 'path' )
 const readline = require('readline')
 
-const _tempOut = fs.createWriteStream( path.join( process.cwd(), '../_template.tmpl' ) )
+let _tempFile = path.join( process.cwd(), '../_template.tmpl' )
 
 const util = {
 
-    _tempOut,
+    _tempFile,
 
     iterateFiles( dir, cb, finished){
-        let count = sum = 0
+        let count = 0
+        let sum = 0
+        let hasMoreFile = false
         _iterate( dir, cb )
 
-        function _iterateDeepDir( dir, files, cb ){
-            files.forEach( file => {
-                let stats = fs.statSync( path.join( dir , file ) )
-                if( !stats.isDirectory() ){
-                    return
-                }
-                let res = cb( dir );
+        function _iterateDeepDir( pDir, dirs, cb ){
+            dirs.forEach( dir => {
+                let res = cb( path.join( pDir, dir ) )
+
                 if( res === false ){
                     return
                 }
                 if( res && res.then ){
-                    res.then( () => {
-                        _iterate( path.join( dir , file ) , cb );
+                    res.then( ( data ) => {
+                        if( data === false ){
+                            return
+                        }
+                        _iterate( path.join( pDir , dir ) , cb );
                     })
                 }else{
-                    _iterate( path.join( dir , file ) , cb );
+                    _iterate( path.join( pDir , dir ) , cb );
                 }
             })
+
         }
 
         function _iterate( dir, cb ){
         	fs.readdir( dir , ( err, files ) => {
-                let _count = _sum = 0
-                files.forEach( file => {
+                let _count = 0
+                let _sum = 0
+                let file, dirs = []
+                for( let i=0;i<files.length;i++ ){
+                    file = files[i]
                     let stats = fs.statSync( path.resolve( dir , file ) );
-                    if( !stats.isDirectory() ){
-                        let res = cb( dir , file );
-                        if( res === false ){
-                            return
-                        }
-                        count++
-                        _count++
-                        if( res && res.then ){
-                            res.then( () => {
-                                sum++
-                                _sum++
-                                if( _sum == _count ){
-                                    _iterateDeepDir( dir, files, cb )
-                                }
-                                if( sum == count ){
-                                    finished( sum )
-                                }
-                            })
-                        }else{
-                            setTimeout(() => {
-                                sum++
-                                _sum++
-                                if( _sum == _count ){
-                                    _iterateDeepDir( dir, files, cb )
-                                }
-                                if( sum == count ){
-                                    finished( sum )
-                                }
-                            })
-                        }
+                    if( stats.isDirectory() ){
+                        dirs.push( file )
+                        continue
                     }
-                });
+                    let res = cb( dir , file );
+                    if( res === false ){
+                        continue
+                    }
+                    count++
+                    _count++
+                    if( res && res.then ){
+                        res.then( () => {
+                            sum++
+                            _sum++
+                            if( _sum == _count ){
+                                _iterateDeepDir( dir, dirs, cb )
+                            }
+                            if( sum == count ){
+                                finished( sum )
+                            }
+                        })
+                    }else{
+                        sum++
+                        _sum++
+                        if( _sum == _count ){
+                            _iterateDeepDir( dir, dirs, cb )
+                        }
+                        setTimeout(() => {
+                            if( sum == count ){
+                                finished( sum )
+                            }
+                        })
+                    }
+                }
+                if( _count == 0 ){
+                    _iterateDeepDir( dir, dirs, cb )
+                }
             })
         }
     },
 
     readFileLines( file ){
-        let _tempOut = fs.createWriteStream( path.join( process.cwd(), '../_template.tmpl' ) )
+        let _tempStream = fs.createWriteStream( _tempFile )
         let stream = fs.createReadStream( file )
         let rl = readline.createInterface({
           input: stream
@@ -88,11 +99,11 @@ const util = {
 
         return new Promise( resolve => {
             rl.on( 'line', _listener )
-            stream.pipe( _tempOut )
+            stream.pipe( _tempStream )
             stream.on( 'end', () => {
                 setTimeout( () => {
                     stream.close()
-                    _tempOut.close()
+                    _tempStream.close()
                     resolve( lines )
                     rl.removeListener( 'line', _listener )
                     rl.close()
@@ -115,28 +126,30 @@ const util = {
         }
 
         function _test( rule, filePath ){
+            if( !rule ){
+                return false
+            }
+            let _rule = rule
             let reg, res
+            let cwd = ( process.cwd() + '/' ).replace( /[\\\/]+/g, '/' )
             if( rule.indexOf( '.' ) < 0 ){
                 rule += '/'
             }
-            rule = rule.replace( /[\\\/]+/g, '/' ).replace( '/', '\/' )
-            filePath = filePath.replace( /[\\\/]+/g, '/' )
-            if( rule.endsWith( '*.*' ) || rule.endsWith( '/' ) ){
-                rule = rule.replace( /(?:*\.*)|\/$/, '.*$' )
-                reg = new RegExp( rule )
-                res = reg.test( filePath )
-                return res
-            }
 
-            if( /\*\..+$/.test( rule ) ){
-                rule = rule.replace( /\*\.(.+)$/, '[^\\\\\/]+\.$1$' )
-                reg = new RegExp( rule )
-                res = reg.test( filePath )
-                return res
-            }
+            rule = rule.replace( /[\\\/]+/g, '/' )
+                        .replace( /^\//, cwd )
+                        .replace( /\*\*\//g, '.*?' )
+                        .replace( /(?:(\*\.\*)|\/)$/, '/.*$' )
+                        .replace( /\//g, '\\/' )
+
+            rule = rule.replace( /\*\.([^*]+)$/, '[^\\\\\\\/]+\\.$1$' )
+
+
+            filePath = filePath.replace( /[\\\/]+/g, '/' )
 
             reg = new RegExp( rule )
             res = reg.test( filePath )
+
             return res
         }
 
