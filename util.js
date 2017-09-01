@@ -10,51 +10,71 @@ const util = {
 
     iterateFiles( dir, cb, finished){
         let count = sum = 0
-        _iterate( dir )
+        _iterate( dir, cb )
 
-        function _iterate( dir ){
-        	fs.readdirSync( dir )
-        		.forEach( file => {
-        			let stats = fs.statSync( path.resolve( dir , file ) );
-        			if( stats.isDirectory() ){
-        				let res = cb( dir );
-                        if( res === false ){
-                            return
-                        }
-                        if( res && res.then ){
-                            res.then( () => {
-                                _iterate( path.resolve( dir , file ) , cb );
-                            })
-                        }else{
-                            _iterate( path.resolve( dir , file ) , cb );
-                        }
-        			}else{
-        				let res = cb( dir , file );
+        function _iterateDeepDir( dir, files, cb ){
+            files.forEach( file => {
+                let stats = fs.statSync( path.join( dir , file ) )
+                if( !stats.isDirectory() ){
+                    return
+                }
+                let res = cb( dir );
+                if( res === false ){
+                    return
+                }
+                if( res && res.then ){
+                    res.then( () => {
+                        _iterate( path.join( dir , file ) , cb );
+                    })
+                }else{
+                    _iterate( path.join( dir , file ) , cb );
+                }
+            })
+        }
+
+        function _iterate( dir, cb ){
+        	fs.readdir( dir , ( err, files ) => {
+                let _count = _sum = 0
+                files.forEach( file => {
+                    let stats = fs.statSync( path.resolve( dir , file ) );
+                    if( !stats.isDirectory() ){
+                        let res = cb( dir , file );
                         if( res === false ){
                             return
                         }
                         count++
+                        _count++
                         if( res && res.then ){
                             res.then( () => {
                                 sum++
+                                _sum++
+                                if( _sum == _count ){
+                                    _iterateDeepDir( dir, files, cb )
+                                }
                                 if( sum == count ){
                                     finished( sum )
                                 }
                             })
                         }else{
-                            setTimeout( () => {
+                            setTimeout(() => {
                                 sum++
+                                _sum++
+                                if( _sum == _count ){
+                                    _iterateDeepDir( dir, files, cb )
+                                }
                                 if( sum == count ){
                                     finished( sum )
                                 }
                             })
                         }
-        			}
-        		});
+                    }
+                });
+            })
         }
     },
 
     readFileLines( file ){
+        let _tempOut = fs.createWriteStream( path.join( process.cwd(), '../_template.tmpl' ) )
         let stream = fs.createReadStream( file )
         let rl = readline.createInterface({
           input: stream
@@ -72,8 +92,10 @@ const util = {
             stream.on( 'end', () => {
                 setTimeout( () => {
                     stream.close()
+                    _tempOut.close()
                     resolve( lines )
                     rl.removeListener( 'line', _listener )
+                    rl.close()
                     rl = null
                 })
             })
@@ -93,7 +115,7 @@ const util = {
         }
 
         function _test( rule, filePath ){
-            let reg
+            let reg, res
             if( rule.indexOf( '.' ) < 0 ){
                 rule += '/'
             }
@@ -102,18 +124,22 @@ const util = {
             if( rule.endsWith( '*.*' ) || rule.endsWith( '/' ) ){
                 rule = rule.replace( /(?:*\.*)|\/$/, '.*$' )
                 reg = new RegExp( rule )
-                return reg.test( filePath )
+                res = reg.test( filePath )
+                return res
             }
 
             if( /\*\..+$/.test( rule ) ){
                 rule = rule.replace( /\*\.(.+)$/, '[^\\\\\/]+\.$1$' )
                 reg = new RegExp( rule )
-                return reg.test( filePath )
+                res = reg.test( filePath )
+                return res
             }
 
             reg = new RegExp( rule )
-            return reg.test( filePath )
+            res = reg.test( filePath )
+            return res
         }
+
     }
 
 }

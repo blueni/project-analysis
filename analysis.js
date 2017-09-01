@@ -7,7 +7,8 @@ class Analysis{
     constructor( argv ){
         this.includes = []
         this.excludes = [
-            '.git', '.gitignore', '.svn', 'yarn.*', 'npm.*', 'package.json', '.vscode'
+            '.git', '.gitignore', '.svn', 'yarn.*', 'npm.*', 'package.json', '.vscode',
+            '*.png', '*.jpg', '*.jpeg', '*.gif',
         ]
         this.argv = argv
     }
@@ -50,6 +51,7 @@ ${'*'.repeat( 40 )}
             if( pathTest( includes, fullFile ) === false || pathTest( excludes, fullFile ) ){
                 return false
             }
+            // console.log( 'is right...', fullFile )
             if( file ){
                 return readFileLines( fullFile ).then( lines => {
                     count += lines
@@ -59,7 +61,7 @@ ${'*'.repeat( 40 )}
         }, ( res ) => {
             console.log( '-'.repeat( 40 ) )
             console.log( '项目代码总行数为：', count )
-            _tempOut.close()
+            // _tempOut.close()
         })
 
     }
