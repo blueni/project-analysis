@@ -7,7 +7,7 @@ class Analysis{
     constructor( argv ){
         this.includes = []
         this.excludes = [
-            '.git', '.gitignore', '.svn', 'yarn.*', 'npm.*', 'package.json', '.vscode',
+            '.git', '.gitignore', '.analysis-ignore', '.svn', 'yarn.*', 'npm.*', 'package.json', '.vscode',
             '*.mp4', '*.png', '*.jpg', '*.jpeg', '*.gif', '*.ico', '_template.tmpl',
         ]
         let ignoreFiles = [ '.gitignore', '.analysis-ignore' ]
@@ -53,19 +53,14 @@ ${'*'.repeat( 40 )}
         开始计算项目代码总行数
 ${'*'.repeat( 40 )}
     ` )
-        iterateFiles( cwd, ( dir, file ) => {
-            let fullFile = dir
-            if( file ){
-                fullFile = path.join( dir, file )
-            }
-
-            if( pathTest( includes, fullFile ) === false || pathTest( excludes, fullFile ) ){
+        iterateFiles( cwd, ( file, isDir  ) => {
+            if( pathTest( includes, file ) === false || pathTest( excludes, file ) ){
                 return false
             }
-            if( file ){
-                return readFileLines( fullFile ).then( lines => {
+            if( !isDir ){
+                return readFileLines( file ).then( lines => {
                     count += lines
-                    console.log( '项目文件 ', fullFile, '的行数为', lines )
+                    console.log( '项目文件 ', file, '的行数为', lines )
                 })
             }
         }, ( res ) => {

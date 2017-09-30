@@ -9,76 +9,54 @@ const util = {
     _tempFile,
 
     iterateFiles( dir, cb, finished){
-        let count = 0
-        let sum = 0
-        let hasMoreFile = false
+        let fileCount = 0
+        let fileSyncCount = 0
+        let dirCount = 0
+        let dirSyncCount = 0
+        
         _iterate( dir, cb )
 
-        function _iterateDeepDir( pDir, dirs, cb ){
-            dirs.forEach( dir => {
-                let res = cb( path.join( pDir, dir ) )
-
-                if( res === false ){
-                    return
-                }
-                if( res && res.then ){
-                    res.then( ( data ) => {
-                        if( data === false ){
-                            return
-                        }
-                        _iterate( path.join( pDir , dir ) , cb );
-                    })
-                }else{
-                    _iterate( path.join( pDir , dir ) , cb );
-                }
-            })
-
-        }
-
         function _iterate( dir, cb ){
+            dirSyncCount++
+
         	fs.readdir( dir , ( err, files ) => {
-                let _count = 0
-                let _sum = 0
-                let file, dirs = []
-                for( let i=0;i<files.length;i++ ){
-                    file = files[i]
-                    let stats = fs.statSync( path.resolve( dir , file ) );
-                    if( stats.isDirectory() ){
-                        dirs.push( file )
-                        continue
-                    }
-                    let res = cb( dir , file );
-                    if( res === false ){
-                        continue
-                    }
-                    count++
-                    _count++
-                    if( res && res.then ){
-                        res.then( () => {
-                            sum++
-                            _sum++
-                            if( _sum == _count ){
-                                _iterateDeepDir( dir, dirs, cb )
-                            }
-                            if( sum == count ){
-                                finished( sum )
-                            }
-                        })
-                    }else{
-                        sum++
-                        _sum++
-                        if( _sum == _count ){
-                            _iterateDeepDir( dir, dirs, cb )
-                        }
-                        setTimeout(() => {
-                            if( sum == count ){
-                                finished( sum )
-                            }
-                        })
-                    }
+                let length = files.length
+                let sum = 0                
+                let file
+                let isDir
+                let promise
+
+                if( !length ){
+                    dirCount++
                 }
-                if( _count == 0 ){
-                    _iterateDeepDir( dir, dirs, cb )
+
+                for( let i=0;i<length;i++ ){
+                    file = path.join( dir , files[i] )
+                    let stats = fs.statSync( file );
+                    let isDir = stats.isDirectory( file )
+                    let res = cb( file, isDir );
+
+                    if( res && res.then ){
+                        promise = res
+                    }else{
+                        promise = Promise.resolve()
+                    }
+                    if( res === false ){
+                        fileCount--
+                    }
+                    if( isDir && res !== false ){
+                        _iterate( file, cb )
+                    }
+                    promise.then( () => {
+                        fileCount++
+                        sum++
+                        if( sum == length ){
+                            dirCount++
+                            if( dirCount === dirSyncCount ){
+                                finished( fileCount, dirCount )
+                            }
+                        }
+                    })
                 }
             })
         }
@@ -141,9 +119,7 @@ const util = {
                         .replace( /\*\*\//g, '.*?' )
                         .replace( /(?:(\*\.\*)|\/)$/, '/.*$' )
                         .replace( /\//g, '\\/' )
-
-            rule = rule.replace( /\*\.([^*]+)$/, '[^\\\\\\\/]+\\.$1$' )
-
+                        .replace( /\*\.([^*]+)$/, '[^\\\\\\\/]+\\.$1$' )
 
             filePath = filePath.replace( /[\\\/]+/g, '/' )
 
